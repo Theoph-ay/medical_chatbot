@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description"
+        content="Medical AI Chatbot — get evidence-based answers from medical textbooks, pediatric slides, and surgical literature." />
+    <title>MedAssist AI — Medical Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <!-- Favicon (medical cross emoji fallback) -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>" />
+</head>
+
+<body>
+
+    <div class="chat-wrapper">
+        <!-- ===== Header ===== -->
+        <header class="chat-header">
+            <div class="header-icon">🩺</div>
+            <div class="header-info">
+                <h1>MedAssist AI</h1>
+                <p>Evidence-based medical assistant</p>
+            </div>
+        </header>
+
+        <!-- ===== Messages ===== -->
+        <main class="chat-messages" id="chat-messages">
+
+            <!-- Welcome card (hidden after first message) -->
+            <div class="welcome-card" id="welcome-card">
+                <div class="welcome-icon">🏥</div>
+                <h2>Welcome to MedAssist AI</h2>
+                <p>Ask any medical question — I'll retrieve evidence-based answers from medical textbooks, pediatric
+                    slides, and surgical literature.</p>
+
+                <div class="quick-prompts">
+                    <button class="quick-prompt"
+                        data-prompt="What are the signs and symptoms of appendicitis?">Appendicitis signs</button>
+                    <button class="quick-prompt" data-prompt="Explain the pathophysiology of heart failure">Heart
+                        failure</button>
+                    <button class="quick-prompt" data-prompt="What is the management of neonatal jaundice?">Neonatal
+                        jaundice</button>
+                    <button class="quick-prompt" data-prompt="Describe the surgical approach for craniotomy">Craniotomy
+                        approach</button>
+                </div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="typing-indicator" id="typing-indicator">
+                <div class="avatar">🤖</div>
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+        </main>
+
+        <!-- ===== Input Area ===== -->
+        <footer class="chat-input-area">
+            <form class="input-wrapper" id="chat-form" autocomplete="off">
+                <textarea id="user-input" placeholder="Ask a medical question..." rows="1" autofocus></textarea>
+                <button type="submit" id="send-btn" aria-label="Send message">
+                    <!-- Paper-plane SVG icon -->
+                    <svg viewBox="0 0 24 24">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
+            <p class="disclaimer">MedAssist AI provides information for educational purposes only. Always consult a
+                qualified healthcare professional.</p>
+        </footer>
+    </div>
+
+    <!-- ============================== -->
+    <!--        JavaScript Logic        -->
+    <!-- ============================== -->
+    <script>
+        (function () {
+            'use strict';
+
+            // DOM refs
+            const chatMessages = document.getElementById('chat-messages');
+            const chatForm = document.getElementById('chat-form');
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const welcomeCard = document.getElementById('welcome-card');
+
+            // ---- Auto-resize textarea ----
+            userInput.addEventListener('input', () => {
+                userInput.style.height = 'auto';
+                userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+            });
+
+            // ---- Submit on Enter (Shift+Enter for newline) ----
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    chatForm.dispatchEvent(new Event('submit'));
+                }
+            });
+
+            // ---- Quick prompt buttons ----
+            document.querySelectorAll('.quick-prompt').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    userInput.value = btn.dataset.prompt;
+                    userInput.dispatchEvent(new Event('input'));
+                    chatForm.dispatchEvent(new Event('submit'));
+                });
+            });
+
+            // ---- Form submit handler ----
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const query = userInput.value.trim();
+                if (!query) return;
+
+                // Hide welcome card on first message
+                if (welcomeCard) welcomeCard.remove();
+
+                // Add user bubble
+                appendMessage('user', query);
+
+                // Clear input
+                userInput.value = '';
+                userInput.style.height = 'auto';
+                userInput.focus();
+
+                // Show typing indicator & disable input
+                showTyping(true);
+                setInputState(false);
+
+                try {
+                    // Build FormData with key "query"
+                    const formData = new FormData();
+                    formData.append('query', query);
+
+                    const res = await fetch('/chat', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+                    const data = await res.json();
+                    const answer = data.response || 'Sorry, I could not generate a response.';
+
+                    showTyping(false);
+                    appendMessage('ai', answer);
+                } catch (err) {
+                    console.error('Fetch error:', err);
+                    showTyping(false);
+                    appendMessage('ai', '⚠️ Something went wrong while connecting to the server. Please try again.');
+                } finally {
+                    setInputState(true);
+                }
+            });
+
+            // ---- Helpers ----
+
+            /** Append a message bubble to the chat */
+            function appendMessage(role, text) {
+                const msgDiv = document.createElement('div');
+                msgDiv.classList.add('message', role);
+
+                if (role === 'ai') {
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar';
+                    avatar.textContent = '🤖';
+                    msgDiv.appendChild(avatar);
+                }
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+
+                if (role === 'ai') {
+                    bubble.innerHTML = renderMarkdown(text);
+                } else {
+                    bubble.textContent = text;
+                }
+
+                msgDiv.appendChild(bubble);
+
+                // Insert before typing indicator so indicator stays at the bottom
+                chatMessages.insertBefore(msgDiv, typingIndicator);
+                scrollToBottom();
+            }
+
+            /** Show / hide typing indicator */
+            function showTyping(show) {
+                typingIndicator.classList.toggle('visible', show);
+                if (show) scrollToBottom();
+            }
+
+            /** Enable / disable input */
+            function setInputState(enabled) {
+                userInput.disabled = !enabled;
+                sendBtn.disabled = !enabled;
+            }
+
+            /** Scroll chat to the very bottom */
+            function scrollToBottom() {
+                requestAnimationFrame(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                });
+            }
+
+            /**
+             * Lightweight markdown-ish renderer.
+             * Handles: line breaks, **bold**, *italic*, `code`,
+             * unordered lists (- or *), ordered lists, and fenced code blocks.
+             */
+            function renderMarkdown(text) {
+                // Normalise line endings
+                text = text.replace(/\r\n/g, '\n');
+
+                // Fenced code blocks  ```...```
+                text = text.replace(/```([\s\S]*?)```/g, (_, code) => {
+                    return '<pre><code>' + escapeHtml(code.trim()) + '</code></pre>';
+                });
+
+                // Inline code
+                text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+                // Bold  **text**
+                text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+                // Italic  *text*
+                text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+
+                // Split into lines for block-level formatting
+                const lines = text.split('\n');
+                let html = '';
+                let inUl = false;
+                let inOl = false;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+
+                    // Unordered list
+                    const ulMatch = line.match(/^\s*[-*]\s+(.+)/);
+                    // Ordered list
+                    const olMatch = line.match(/^\s*\d+\.\s+(.+)/);
+
+                    if (ulMatch) {
+                        if (!inUl) { html += '<ul>'; inUl = true; }
+                        html += '<li>' + ulMatch[1] + '</li>';
+                        continue;
+                    } else if (inUl) {
+                        html += '</ul>';
+                        inUl = false;
+                    }
+
+                    if (olMatch) {
+                        if (!inOl) { html += '<ol>'; inOl = true; }
+                        html += '<li>' + olMatch[1] + '</li>';
+                        continue;
+                    } else if (inOl) {
+                        html += '</ol>';
+                        inOl = false;
+                    }
+
+                    // Heading-like lines (### Heading)
+                    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
+                    if (headingMatch) {
+                        const level = headingMatch[1].length + 1; // bump so h2+
+                        html += `<strong>${headingMatch[2]}</strong><br/>`;
+                        continue;
+                    }
+
+                    // Empty line → paragraph break
+                    if (line.trim() === '') {
+                        html += '<br/>';
+                    } else {
+                        html += '<p>' + line + '</p>';
+                    }
+                }
+
+                if (inUl) html += '</ul>';
+                if (inOl) html += '</ol>';
+
+                return html;
+            }
+
+            /** Escape HTML special characters */
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+        })();
+    </script>
+
+</body>
+
+</html>
