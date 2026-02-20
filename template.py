@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 list_of_files = [
     "src/__init__.py",
     "src/helper.py",
+    "src/prompt.py"
     "setup.py",
     ".env"
     "experiments/experiments.ipynb"
