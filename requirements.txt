@@ -10,3 +10,5 @@ flask
 pypdf
 langchain-pinecone
 pinecone-client
+
+-e .
