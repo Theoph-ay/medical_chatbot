@@ -5,10 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description"
-        content="Medical AI Chatbot — get evidence-based answers from medical textbooks, pediatric slides, and surgical literature." />
+        content="Medical AI Chatbot — get evidence-based answers from Hutchinson's Clinical Methods." />
     <title>MedAssist AI — Medical Chatbot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-    <!-- Favicon (medical cross emoji fallback) -->
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>" />
 </head>
@@ -23,12 +22,16 @@
                 <h1>MedAssist AI</h1>
                 <p>Evidence-based medical assistant</p>
             </div>
+            <div class="header-status">
+                <span class="status-dot"></span>
+                Online
+            </div>
         </header>
 
         <!-- ===== Messages ===== -->
         <main class="chat-messages" id="chat-messages">
 
-            <!-- Welcome card (hidden after first message) -->
+            <!-- Welcome card -->
             <div class="welcome-card" id="welcome-card">
                 <div class="welcome-icon">🏥</div>
                 <h2>Welcome to MedAssist AI</h2>
@@ -61,15 +64,24 @@
             <form class="input-wrapper" id="chat-form" autocomplete="off">
                 <textarea id="user-input" placeholder="Ask a medical question..." rows="1" autofocus></textarea>
                 <button type="submit" id="send-btn" aria-label="Send message">
-                    <!-- Paper-plane SVG icon -->
                     <svg viewBox="0 0 24 24">
                         <line x1="22" y1="2" x2="11" y2="13"></line>
                         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                     </svg>
                 </button>
             </form>
-            <p class="disclaimer">MedAssist AI provides information for educational purposes only. Always consult a
-                qualified healthcare professional.</p>
+
+            <!-- Tech stack branding -->
+            <div class="footer-branding">
+                <span class="disclaimer-text">For educational purposes only — always consult a healthcare
+                    professional.</span>
+                <div class="tech-badges">
+                    <span class="tech-badge"><span class="badge-icon">🐍</span> Python</span>
+                    <span class="tech-badge"><span class="badge-icon">🌶️</span> Flask</span>
+                    <span class="tech-badge"><span class="badge-icon">🦜</span> LangChain</span>
+                    <span class="tech-badge"><span class="badge-icon">🌲</span> Pinecone</span>
+                </div>
+            </div>
         </footer>
     </div>
 
@@ -80,7 +92,6 @@
         (function () {
             'use strict';
 
-            // DOM refs
             const chatMessages = document.getElementById('chat-messages');
             const chatForm = document.getElementById('chat-form');
             const userInput = document.getElementById('user-input');
@@ -117,23 +128,18 @@
                 const query = userInput.value.trim();
                 if (!query) return;
 
-                // Hide welcome card on first message
                 if (welcomeCard) welcomeCard.remove();
 
-                // Add user bubble
                 appendMessage('user', query);
 
-                // Clear input
                 userInput.value = '';
                 userInput.style.height = 'auto';
                 userInput.focus();
 
-                // Show typing indicator & disable input
                 showTyping(true);
                 setInputState(false);
 
                 try {
-                    // Build FormData with key "query"
                     const formData = new FormData();
                     formData.append('query', query);
 
@@ -160,7 +166,6 @@
 
             // ---- Helpers ----
 
-            /** Append a message bubble to the chat */
             function appendMessage(role, text) {
                 const msgDiv = document.createElement('div');
                 msgDiv.classList.add('message', role);
@@ -182,25 +187,20 @@
                 }
 
                 msgDiv.appendChild(bubble);
-
-                // Insert before typing indicator so indicator stays at the bottom
                 chatMessages.insertBefore(msgDiv, typingIndicator);
                 scrollToBottom();
             }
 
-            /** Show / hide typing indicator */
             function showTyping(show) {
                 typingIndicator.classList.toggle('visible', show);
                 if (show) scrollToBottom();
             }
 
-            /** Enable / disable input */
             function setInputState(enabled) {
                 userInput.disabled = !enabled;
                 sendBtn.disabled = !enabled;
             }
 
-            /** Scroll chat to the very bottom */
             function scrollToBottom() {
                 requestAnimationFrame(() => {
                     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -208,74 +208,106 @@
             }
 
             /**
-             * Lightweight markdown-ish renderer.
-             * Handles: line breaks, **bold**, *italic*, `code`,
-             * unordered lists (- or *), ordered lists, and fenced code blocks.
+             * Markdown renderer with TABLE support.
+             * Handles: tables, fenced code, bold, italic, inline code,
+             * unordered/ordered lists, headings, line breaks.
              */
             function renderMarkdown(text) {
-                // Normalise line endings
                 text = text.replace(/\r\n/g, '\n');
 
-                // Fenced code blocks  ```...```
+                // Fenced code blocks ```...```
                 text = text.replace(/```([\s\S]*?)```/g, (_, code) => {
-                    return '<pre><code>' + escapeHtml(code.trim()) + '</code></pre>';
+                    return '\x00PRE' + btoa(unescape(encodeURIComponent(code.trim()))) + 'PRE\x00';
                 });
 
                 // Inline code
                 text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-                // Bold  **text**
+                // Bold
                 text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-                // Italic  *text*
+                // Italic
                 text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
 
-                // Split into lines for block-level formatting
                 const lines = text.split('\n');
                 let html = '';
                 let inUl = false;
                 let inOl = false;
+                let i = 0;
 
-                for (let i = 0; i < lines.length; i++) {
+                while (i < lines.length) {
                     const line = lines[i];
+
+                    // --- Detect markdown tables ---
+                    // A table starts with a line containing |, followed by a separator line |---|
+                    if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*[-:]+[-|:\s]+\s*\|?\s*$/.test(lines[i + 1])) {
+                        // Close any open list
+                        if (inUl) { html += '</ul>'; inUl = false; }
+                        if (inOl) { html += '</ol>'; inOl = false; }
+
+                        html += parseTable(lines, i);
+
+                        // Skip past the table rows
+                        i++; // header
+                        i++; // separator
+                        while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    // --- Restore fenced code blocks ---
+                    const preMatch = line.match(/\x00PRE(.+?)PRE\x00/);
+                    if (preMatch) {
+                        if (inUl) { html += '</ul>'; inUl = false; }
+                        if (inOl) { html += '</ol>'; inOl = false; }
+                        const decoded = decodeURIComponent(escape(atob(preMatch[1])));
+                        html += '<pre><code>' + escapeHtml(decoded) + '</code></pre>';
+                        i++;
+                        continue;
+                    }
 
                     // Unordered list
                     const ulMatch = line.match(/^\s*[-*]\s+(.+)/);
-                    // Ordered list
                     const olMatch = line.match(/^\s*\d+\.\s+(.+)/);
 
                     if (ulMatch) {
+                        if (inOl) { html += '</ol>'; inOl = false; }
                         if (!inUl) { html += '<ul>'; inUl = true; }
                         html += '<li>' + ulMatch[1] + '</li>';
+                        i++;
                         continue;
-                    } else if (inUl) {
+                    } else if (inUl && !ulMatch) {
                         html += '</ul>';
                         inUl = false;
                     }
 
                     if (olMatch) {
+                        if (inUl) { html += '</ul>'; inUl = false; }
                         if (!inOl) { html += '<ol>'; inOl = true; }
                         html += '<li>' + olMatch[1] + '</li>';
+                        i++;
                         continue;
-                    } else if (inOl) {
+                    } else if (inOl && !olMatch) {
                         html += '</ol>';
                         inOl = false;
                     }
 
-                    // Heading-like lines (### Heading)
+                    // Headings
                     const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
                     if (headingMatch) {
-                        const level = headingMatch[1].length + 1; // bump so h2+
                         html += `<strong>${headingMatch[2]}</strong><br/>`;
+                        i++;
                         continue;
                     }
 
-                    // Empty line → paragraph break
+                    // Empty line
                     if (line.trim() === '') {
                         html += '<br/>';
                     } else {
                         html += '<p>' + line + '</p>';
                     }
+                    i++;
                 }
 
                 if (inUl) html += '</ul>';
@@ -284,7 +316,59 @@
                 return html;
             }
 
-            /** Escape HTML special characters */
+            /**
+             * Parse a markdown table starting at lines[startIndex].
+             * Returns HTML string for the table.
+             */
+            function parseTable(lines, startIndex) {
+                let idx = startIndex;
+
+                // Parse header row
+                const headerCells = parseTableRow(lines[idx]);
+                idx++; // move past header
+
+                // Skip separator row (|---|---|)
+                idx++;
+
+                // Parse body rows
+                const bodyRows = [];
+                while (idx < lines.length && lines[idx].includes('|') && lines[idx].trim() !== '') {
+                    bodyRows.push(parseTableRow(lines[idx]));
+                    idx++;
+                }
+
+                // Build HTML
+                let tableHtml = '<div class="table-wrapper"><table>';
+
+                // thead
+                tableHtml += '<thead><tr>';
+                for (const cell of headerCells) {
+                    tableHtml += '<th>' + cell + '</th>';
+                }
+                tableHtml += '</tr></thead>';
+
+                // tbody
+                tableHtml += '<tbody>';
+                for (const row of bodyRows) {
+                    tableHtml += '<tr>';
+                    for (let c = 0; c < row.length; c++) {
+                        tableHtml += '<td>' + row[c] + '</td>';
+                    }
+                    tableHtml += '</tr>';
+                }
+                tableHtml += '</tbody></table></div>';
+
+                return tableHtml;
+            }
+
+            /** Split a markdown table row like "| a | b | c |" into ['a','b','c'] */
+            function parseTableRow(line) {
+                let trimmed = line.trim();
+                if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+                if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
+                return trimmed.split('|').map(cell => cell.trim());
+            }
+
             function escapeHtml(str) {
                 const div = document.createElement('div');
                 div.textContent = str;
