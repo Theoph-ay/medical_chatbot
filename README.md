@@ -19,12 +19,12 @@ Retrieval-Augmented Generation (RAG) chatbot that answers evidence-based medical
 
 ## ✨ Features
 
-- 🤖 **RAG-powered answers** — retrieves the most relevant chunks from medical textbooks before generating a response
-- 📚 **Hutchinson's Clinical Methods** — built on one of the most trusted clinical reference texts
-- 🧠 **Groq LLM inference** — fast responses via the Groq API
-- 🌲 **Pinecone vector store** — semantic search across chunked medical documents
-- 🎨 **Beautiful dark-themed UI** — modern, responsive chat interface with markdown & table rendering
-- ⚡ **Real-time chat** — typing indicators, animated transitions, and quick-prompt suggestions
+-  **RAG-powered answers** — retrieves the most relevant chunks from medical textbooks before generating a response
+-  **Hutchinson's Clinical Methods** — built on one of the most trusted clinical reference texts
+-  **Groq LLM inference** — fast responses via the Groq API
+-  **Pinecone vector store** — semantic search across chunked medical documents
+-  **Beautiful dark-themed UI** — modern, responsive chat interface with markdown & table rendering
+-  **Real-time chat** — typing indicators, animated transitions, and quick-prompt suggestions
 
 ## 🏗️ Architecture
 
