@@ -1,4 +1,4 @@
-prompt = ChatPromptTemplate.from_template("""
+prompt =("""
 You are an expert medical assistant.
 Use the following pieces of context (retrieved from medical slides) to answer the question.
 
