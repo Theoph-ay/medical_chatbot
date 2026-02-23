@@ -2,3 +2,4 @@ venv
 .env
 ___Hutchison's Clinical Methods, 23rd Edition.pdf
 .venv
+model_cache

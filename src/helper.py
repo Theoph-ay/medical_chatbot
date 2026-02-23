@@ -20,9 +20,13 @@ def text_split(extracted_data):
     return test_chunks
 
 
-#download embedding model
 def download_hugging_face_embeddings():
-    emebeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return emebeddings
-
+    # This creates a folder in the project called 'model_cache'
+    # It will download from the internet the VERY FIRST time, 
+    # and load instantly from the hard drive every time after that.
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        cache_folder="./model_cache" 
+    )
+    return embeddings
 
